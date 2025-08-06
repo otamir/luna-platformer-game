@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <title>Luna's Bone Adventure</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            touch-action: none;
+        }
+
+        #gameContainer {
+            text-align: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            max-width: 95vw;
+            max-height: 95vh;
+        }
+
+        #gameCanvas {
+            border: 2px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            display: block;
+            background: linear-gradient(to bottom, #87CEEB 0%, #98D8E8 100%);
+            max-width: 100%;
+            height: auto;
+        }
+
+        #gameInfo {
+            color: white;
+            font-size: clamp(16px, 3vw, 24px);
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            font-weight: 600;
+        }
+
+        #startScreen, #gameOverScreen {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            z-index: 10;
+            max-width: 90vw;
+            width: 350px;
+        }
+
+        h1 {
+            font-size: clamp(24px, 5vw, 36px);
+            margin-bottom: 20px;
+            color: #ffd700;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7);
+            font-weight: bold;
+        }
+
+        button {
+            font-size: clamp(16px, 3vw, 20px);
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 8px;
+            font-weight: 600;
+            -webkit-appearance: none;
+        }
+
+        button:hover, button:active {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        #controls {
+            color: white;
+            margin-top: 10px;
+            font-size: clamp(12px, 2vw, 16px);
+            font-weight: 500;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            #gameContainer {
+                padding: 5px;
+                border-radius: 10px;
+            }
+            
+            #gameInfo {
+                margin-bottom: 5px;
+            }
+            
+            #controls {
+                margin-top: 5px;
+            }
+        }
+
+        @media (orientation: landscape) and (max-height: 500px) {
+            #gameInfo {
+                display: none;
+            }
+            
+            #controls {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="gameInfo">
+            <span>🦴 Bones: <span id="score">0</span></span> | 
+            <span>❤️ Lives: <span id="lives">3</span></span>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="controls">
+            <span class="desktop-only">Press SPACE or Click to Jump | M for Music</span>
+            <span class="mobile-only">Tap to Jump! 📱</span>
+        </div>
+    </div>
+
+    <div id="startScreen">
+        <h1>🐕 Luna's Adventure 🦴</h1>
+        <p style="margin-bottom: 20px; font-size: clamp(14px, 2.5vw, 16px);">Help Luna collect bones!</p>
+        <button onclick="startGame()">Start Game</button>
+        <button onclick="toggleMusic()">Music: ON</button>
+    </div>
+
+    <div id="gameOverScreen" class="hidden">
+        <h1>Game Over!</h1>
+        <p style="font-size: clamp(18px, 3vw, 24px); margin-bottom: 20px;">Final Score: <span id="finalScore">0</span> bones</p>
+        <button onclick="restartGame()">Play Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Responsive canvas sizing
+        function resizeCanvas() {
+            const container = document.getElementById('gameContainer');
+            const maxWidth = window.innerWidth * 0.95;
+            const maxHeight = window.innerHeight * 0.75;
+            
+            let width = 800;
+            let height = 400;
+            
+            // Adjust for mobile screens
+            if (window.innerWidth < 768) {
+                width = Math.min(maxWidth, 800);
+                height = Math.min(maxHeight, 400);
+                
+                // Maintain aspect ratio
+                if (width / height > 2) {
+                    width = height * 2;
+                } else if (width / height < 2) {
+                    height = width / 2;
+                }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Update ground position based on canvas height
+            return canvas.height - 50;
+        }
+        
+        let groundY = resizeCanvas();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            groundY = resizeCanvas();
+            luna.y = groundY - luna.height;
+        });
+        
+        // Prevent scrolling on mobile
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+        
+        // Update control text based on device
+        function updateControlText() {
+            const controls = document.getElementById('controls');
+            if ('ontouchstart' in window) {
+                controls.innerHTML = 'Tap to Jump! 📱';
+            } else {
+                controls.innerHTML = 'Press SPACE or Click to Jump | M for Music';
+            }
+        }
+        updateControlText();
+        
+        // Audio context for sound effects
+        let audioContext;
+        let musicEnabled = true;
+        let backgroundMusic;
+        
+        // Game variables
+        let gameRunning = false;
+        let score = 0;
+        let lives = 3;
+        let gameSpeed = 5;
+        
+        // Scale game speed based on screen size
+        function getScaledSpeed() {
+            const scale = canvas.width / 800;
+            return gameSpeed * scale;
+        }
+        
+        // Luna (player) - responsive sizing
+        const luna = {
+            x: 100,
+            y: groundY - 40,
+            width: 40,
+            height: 40,
+            velocityY: 0,
+            jumping: false,
+            jumpPower: -15,
+            gravity: 0.6,
+            tailWag: 0,
+            legAnimation: 0,
+            jumpsLeft: 2,  // Allow double jump
+            isDead: false,
+            deathAnimation: 0,
+            rotation: 0
+        };
+        
+        // Game objects arrays
+        let obstacles = [];
+        let bones = [];
+        let clouds = [];
+        let particles = [];
+        let airObstacles = [];  // New array for air obstacles
+        
+        // Initialize audio
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            createBackgroundMusic();
+        }
+        
+        // Create background music
+        function createBackgroundMusic() {
+            if (!audioContext) return;
+            
+            const musicGain = audioContext.createGain();
+            musicGain.gain.value = 0.15;
+            musicGain.connect(audioContext.destination);
+            
+            let noteIndex = 0;
+            const melody = [
+                {note: 261.63, duration: 200}, // C
+                {note: 293.66, duration: 200}, // D
+                {note: 329.63, duration: 200}, // E
+                {note: 261.63, duration: 200}, // C
+                {note: 261.63, duration: 200}, // C
+                {note: 293.66, duration: 200}, // D
+                {note: 329.63, duration: 200}, // E
+                {note: 261.63, duration: 200}, // C
+                {note: 329.63, duration: 200}, // E
+                {note: 349.23, duration: 200}, // F
+                {note: 392, duration: 400},    // G
+                {note: 329.63, duration: 200}, // E
+                {note: 349.23, duration: 200}, // F
+                {note: 392, duration: 400},    // G
+            ];
+            
+            // Bass line
+            function playBass() {
+                if (!musicEnabled || !gameRunning) return;
+                
+                const bassOsc = audioContext.createOscillator();
+                const bassGain = audioContext.createGain();
+                
+                bassOsc.type = 'triangle';
+                bassOsc.frequency.value = 130.81; // C3
+                
+                bassGain.gain.setValueAtTime(0, audioContext.currentTime);
+                bassGain.gain.linearRampToValueAtTime(0.05, audioContext.currentTime + 0.01);
+                bassGain.gain.setValueAtTime(0.05, audioContext.currentTime + 0.4);
+                bassGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
+                
+                bassOsc.connect(bassGain);
+                bassGain.connect(musicGain);
+                
+                bassOsc.start(audioContext.currentTime);
+                bassOsc.stop(audioContext.currentTime + 0.5);
+                
+                setTimeout(playBass, 500);
+            }
+            
+            // Melody line
+            function playMelody() {
+                if (!musicEnabled || !gameRunning) return;
+                
+                const currentNote = melody[noteIndex];
+                const oscillator = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                
+                oscillator.type = 'square';
+                oscillator.frequency.value = currentNote.note;
+                
+                gain.gain.setValueAtTime(0, audioContext.currentTime);
+                gain.gain.linearRampToValueAtTime(0.03, audioContext.currentTime + 0.01);
+                gain.gain.setValueAtTime(0.03, audioContext.currentTime + currentNote.duration/1000 - 0.05);
+                gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + currentNote.duration/1000);
+                
+                oscillator.connect(gain);
+                gain.connect(musicGain);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + currentNote.duration/1000);
+                
+                noteIndex = (noteIndex + 1) % melody.length;
+                setTimeout(playMelody, currentNote.duration);
+            }
+            
+            // Harmony line
+            function playHarmony() {
+                if (!musicEnabled || !gameRunning) return;
+                
+                const harmonyNotes = [196, 220, 246.94, 261.63];
+                const harmonyOsc = audioContext.createOscillator();
+                const harmonyGain = audioContext.createGain();
+                
+                harmonyOsc.type = 'sine';
+                harmonyOsc.frequency.value = harmonyNotes[Math.floor(Math.random() * harmonyNotes.length)];
+                
+                harmonyGain.gain.setValueAtTime(0, audioContext.currentTime);
+                harmonyGain.gain.linearRampToValueAtTime(0.02, audioContext.currentTime + 0.1);
+                harmonyGain.gain.setValueAtTime(0.02, audioContext.currentTime + 0.7);
+                harmonyGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.8);
+                
+                harmonyOsc.connect(harmonyGain);
+                harmonyGain.connect(musicGain);
+                
+                harmonyOsc.start(audioContext.currentTime);
+                harmonyOsc.stop(audioContext.currentTime + 0.8);
+                
+                setTimeout(playHarmony, 800);
+            }
+            
+            backgroundMusic = function() {
+                playBass();
+                setTimeout(playMelody, 100);
+                setTimeout(playHarmony, 200);
+            };
+        }
+        
+        // Play sound effect
+        function playSound(type) {
+            if (!audioContext) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            switch(type) {
+                case 'jump':
+                    oscillator.type = 'square';
+                    oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+                    oscillator.frequency.linearRampToValueAtTime(200, audioContext.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1);
+                    break;
+                case 'collect':
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                    oscillator.frequency.linearRampToValueAtTime(1200, audioContext.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.2, audioContext.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1);
+                    break;
+                case 'hit':
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.value = 100;
+                    gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.2);
+                    break;
+            }
+            
+            oscillator.connect(gain);
+            gain.connect(audioContext.destination);
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        }
+        
+        // Draw Luna
+        function drawLuna() {
+            ctx.save();
+            ctx.translate(luna.x + luna.width/2, luna.y + luna.height/2);
+            
+            // Apply death rotation
+            if (luna.isDead) {
+                ctx.rotate(luna.rotation);
+            }
+            
+            // Animate tail (only if alive)
+            if (!luna.isDead) {
+                luna.tailWag += 0.2;
+            }
+            
+            // Tail (on the left side since dog faces right)
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(-15, -5);
+            ctx.quadraticCurveTo(-25, -10 + (luna.isDead ? 0 : Math.sin(luna.tailWag) * 5), -30, -20 + (luna.isDead ? 0 : Math.sin(luna.tailWag) * 8));
+            ctx.stroke();
+            
+            // Body (more elongated)
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.ellipse(-5, 0, 22, 14, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Chest
+            ctx.beginPath();
+            ctx.ellipse(8, 2, 15, 13, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Head (facing right, more dog-like)
+            ctx.beginPath();
+            ctx.ellipse(18, -6, 13, 11, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Snout (longer and more pronounced)
+            ctx.beginPath();
+            ctx.ellipse(28, -4, 8, 6, -0.1, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Long floppy ears
+            ctx.beginPath();
+            ctx.moveTo(15, -12);
+            ctx.quadraticCurveTo(10, -20, 8, -8);
+            ctx.quadraticCurveTo(7, -2, 10, -8);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.moveTo(20, -14);
+            ctx.quadraticCurveTo(18, -22, 14, -10);
+            ctx.quadraticCurveTo(13, -4, 16, -10);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Eye (X if dead, normal if alive)
+            if (luna.isDead) {
+                // Draw X for dead eyes
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(18, -10);
+                ctx.lineTo(22, -6);
+                ctx.moveTo(22, -10);
+                ctx.lineTo(18, -6);
+                ctx.stroke();
+            } else {
+                // Normal eye
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.ellipse(20, -8, 4, 3.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(21, -8, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Big nose (more prominent)
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.ellipse(35, -4, 4, 3, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+            // Nose highlight
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.ellipse(35, -5, 2, 1.5, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Mouth line (frown if dead)
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(35, -1);
+            if (luna.isDead) {
+                ctx.quadraticCurveTo(32, 2, 28, 1);  // Sad mouth
+            } else {
+                ctx.quadraticCurveTo(32, 1, 28, 0);  // Normal mouth
+            }
+            ctx.stroke();
+            
+            // Legs animation (only if alive)
+            if (!luna.isDead) {
+                luna.legAnimation += gameSpeed * 0.02;
+            }
+            const legOffset = luna.isDead ? 0 : Math.sin(luna.legAnimation) * 3;
+            
+            // Legs (thicker and more dog-like)
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 6;
+            // Front legs (now on the right side)
+            ctx.beginPath();
+            ctx.moveTo(12, 10);
+            ctx.lineTo(12 + legOffset, 20);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(6, 10);
+            ctx.lineTo(6 - legOffset, 20);
+            ctx.stroke();
+            // Back legs (now on the left side)
+            ctx.beginPath();
+            ctx.moveTo(-8, 10);
+            ctx.lineTo(-8 - legOffset, 20);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-14, 10);
+            ctx.lineTo(-14 + legOffset, 20);
+            ctx.stroke();
+            
+            // Paws
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.ellipse(12 + legOffset, 20, 3, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(6 - legOffset, 20, 3, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(-8 - legOffset, 20, 3, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(-14 + legOffset, 20, 3, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Double jump indicator (shows remaining jumps) - only if alive
+            if (!luna.isDead && luna.jumping && luna.jumpsLeft > 0) {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+                for (let i = 0; i < luna.jumpsLeft; i++) {
+                    ctx.beginPath();
+                    ctx.arc(0, -35 - (i * 10), 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            ctx.restore();
+        }
+        
+        // Draw obstacle
+        function drawObstacle(obstacle) {
+            // Draw fire hydrant or rock
+            if (obstacle.type === 'hydrant') {
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                ctx.fillStyle = '#cc0000';
+                ctx.fillRect(obstacle.x + 5, obstacle.y - 5, obstacle.width - 10, 5);
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(obstacle.x + obstacle.width/2, obstacle.y + 10, 3, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = '#666';
+                ctx.beginPath();
+                ctx.moveTo(obstacle.x + 10, obstacle.y + obstacle.height);
+                ctx.lineTo(obstacle.x, obstacle.y + obstacle.height);
+                ctx.lineTo(obstacle.x + 5, obstacle.y);
+                ctx.lineTo(obstacle.x + 15, obstacle.y);
+                ctx.lineTo(obstacle.x + 20, obstacle.y + obstacle.height);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+        
+        // Draw air obstacle (ravens and branches)
+        function drawAirObstacle(obstacle) {
+            if (obstacle.type === 'raven') {
+                ctx.save();
+                ctx.translate(obstacle.x + obstacle.width/2, obstacle.y + obstacle.height/2);
+                
+                // Animate wing flap
+                obstacle.wingFlap = (obstacle.wingFlap || 0) + 0.3;
+                const wingOffset = Math.sin(obstacle.wingFlap) * 10;
+                
+                // Body
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 15, 10, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Head
+                ctx.beginPath();
+                ctx.arc(-10, -3, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Beak
+                ctx.fillStyle = '#444';
+                ctx.beginPath();
+                ctx.moveTo(-18, -3);
+                ctx.lineTo(-25, -2);
+                ctx.lineTo(-18, -1);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Eye
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(-12, -5, 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Wings
+                ctx.fillStyle = '#111';
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.quadraticCurveTo(15, -5 - wingOffset, 25, -10 - wingOffset);
+                ctx.quadraticCurveTo(20, 0, 10, 5);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.quadraticCurveTo(15, -5 + wingOffset, 25, -10 + wingOffset);
+                ctx.quadraticCurveTo(20, 0, 10, 5);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Tail
+                ctx.beginPath();
+                ctx.moveTo(10, 0);
+                ctx.lineTo(18, -3);
+                ctx.lineTo(20, 2);
+                ctx.lineTo(18, 5);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.restore();
+            } else if (obstacle.type === 'branch') {
+                // Tree branch
+                ctx.fillStyle = '#654321';
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                
+                // Branch details
+                ctx.fillStyle = '#543210';
+                ctx.fillRect(obstacle.x + 2, obstacle.y + 2, obstacle.width - 4, obstacle.height/3);
+                
+                // Leaves
+                ctx.fillStyle = '#228B22';
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.arc(obstacle.x + 10 + i * 15, obstacle.y - 5, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = '#32CD32';
+                for (let i = 0; i < 2; i++) {
+                    ctx.beginPath();
+                    ctx.arc(obstacle.x + 15 + i * 20, obstacle.y - 8, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        function drawBone(bone) {
+            ctx.save();
+            ctx.translate(bone.x + bone.width/2, bone.y + bone.height/2);
+            ctx.rotate(bone.rotation);
+            
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 2;
+            
+            // Bone shaft
+            ctx.fillRect(-15, -3, 30, 6);
+            
+            // Bone ends
+            ctx.beginPath();
+            ctx.arc(-15, -3, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(-15, 3, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(15, -3, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(15, 3, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        // Draw cloud
+        function drawCloud(cloud) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.beginPath();
+            ctx.arc(cloud.x, cloud.y, 20, 0, Math.PI * 2);
+            ctx.arc(cloud.x + 25, cloud.y, 30, 0, Math.PI * 2);
+            ctx.arc(cloud.x + 55, cloud.y, 25, 0, Math.PI * 2);
+            ctx.arc(cloud.x + 80, cloud.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Create particle effect
+        function createParticles(x, y, type) {
+            for (let i = 0; i < 10; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
+                    life: 30,
+                    color: type === 'bone' ? '#ffd700' : '#ff0000'
+                });
+            }
+        }
+        
+        // Update particles
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2;
+                p.life--;
+                
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+        
+        // Draw particles
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life / 30;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, 4, 4);
+                ctx.globalAlpha = 1;
+            });
+        }
+        
+        // Screen shake effect
+        function screenShake() {
+            const canvas = document.getElementById('gameCanvas');
+            canvas.style.transform = 'translate(0, 0)';
+            
+            // Trigger vibration on mobile devices
+            if (navigator.vibrate) {
+                navigator.vibrate(200);
+            }
+            
+            let shakeIntensity = 10;
+            let shakeCount = 0;
+            
+            const shake = setInterval(() => {
+                const x = (Math.random() - 0.5) * shakeIntensity;
+                const y = (Math.random() - 0.5) * shakeIntensity;
+                canvas.style.transform = `translate(${x}px, ${y}px)`;
+                
+                shakeCount++;
+                shakeIntensity *= 0.9;
+                
+                if (shakeCount > 10) {
+                    clearInterval(shake);
+                    canvas.style.transform = 'translate(0, 0)';
+                }
+            }, 30);
+        }
+        
+        // Handle jump
+        function jump() {
+            if (!gameRunning) return;
+            
+            if (luna.jumpsLeft > 0) {
+                luna.jumping = true;
+                luna.velocityY = luna.jumpPower;
+                luna.jumpsLeft--;
+                playSound('jump');
+            }
+        }
+        
+        // Update game
+        function update() {
+            if (!gameRunning) return;
+            
+            // Update Luna
+            if (!luna.isDead) {
+                if (luna.jumping) {
+                    luna.velocityY += luna.gravity;
+                    luna.y += luna.velocityY;
+                    
+                    if (luna.y >= groundY - luna.height) {
+                        luna.y = groundY - luna.height;
+                        luna.jumping = false;
+                        luna.velocityY = 0;
+                        luna.jumpsLeft = 2;  // Reset double jump when landing
+                    }
+                }
+            } else {
+                // Death animation - fall and rotate
+                luna.deathAnimation += 0.1;
+                luna.rotation = Math.min(Math.PI, luna.deathAnimation * 2);  // Rotate up to 180 degrees
+                luna.velocityY += luna.gravity;
+                luna.y += luna.velocityY;
+                
+                if (luna.y >= groundY - luna.height) {
+                    luna.y = groundY - luna.height;
+                    luna.velocityY = 0;
+                    
+                    // Show game over after landing
+                    if (luna.rotation >= Math.PI) {
+                        setTimeout(() => {
+                            gameOver();
+                        }, 500);
+                    }
+                }
+            }
+            
+            // Update air obstacles
+            const scaledSpeed = getScaledSpeed();
+            for (let i = airObstacles.length - 1; i >= 0; i--) {
+                airObstacles[i].x -= scaledSpeed * (airObstacles[i].type === 'raven' ? 1.5 : 1);
+                
+                // Check collision with air obstacles
+                if (!luna.isDead &&
+                    luna.x < airObstacles[i].x + airObstacles[i].width &&
+                    luna.x + luna.width > airObstacles[i].x &&
+                    luna.y < airObstacles[i].y + airObstacles[i].height &&
+                    luna.y + luna.height > airObstacles[i].y) {
+                    
+                    createParticles(luna.x + luna.width/2, luna.y + luna.height/2, 'hit');
+                    playSound('hit');
+                    screenShake();
+                    lives--;
+                    airObstacles.splice(i, 1);
+                    
+                    document.getElementById('lives').textContent = lives;
+                    
+                    if (lives <= 0) {
+                        luna.isDead = true;
+                        luna.velocityY = -10;  // Small upward bounce when dying
+                        gameSpeed = 0;  // Stop the game movement
+                    }
+                } else if (airObstacles[i].x + airObstacles[i].width < -50) {
+                    airObstacles.splice(i, 1);
+                }
+            }
+            
+            // Update obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].x -= scaledSpeed;
+                
+                // Check collision
+                if (!luna.isDead &&
+                    luna.x < obstacles[i].x + obstacles[i].width &&
+                    luna.x + luna.width > obstacles[i].x &&
+                    luna.y < obstacles[i].y + obstacles[i].height &&
+                    luna.y + luna.height > obstacles[i].y) {
+                    
+                    createParticles(luna.x + luna.width/2, luna.y + luna.height/2, 'hit');
+                    playSound('hit');
+                    screenShake();
+                    lives--;
+                    obstacles.splice(i, 1);
+                    
+                    document.getElementById('lives').textContent = lives;
+                    
+                    if (lives <= 0) {
+                        luna.isDead = true;
+                        luna.velocityY = -10;  // Small upward bounce when dying
+                        gameSpeed = 0;  // Stop the game movement
+                    }
+                } else if (obstacles[i].x + obstacles[i].width < 0) {
+                    obstacles.splice(i, 1);
+                }
+            }
+            
+            // Update bones
+            for (let i = bones.length - 1; i >= 0; i--) {
+                bones[i].x -= scaledSpeed;
+                bones[i].rotation += 0.05;
+                
+                // Check collection
+                if (luna.x < bones[i].x + bones[i].width &&
+                    luna.x + luna.width > bones[i].x &&
+                    luna.y < bones[i].y + bones[i].height &&
+                    luna.y + luna.height > bones[i].y) {
+                    
+                    createParticles(bones[i].x + bones[i].width/2, bones[i].y + bones[i].height/2, 'bone');
+                    playSound('collect');
+                    score++;
+                    bones.splice(i, 1);
+                    document.getElementById('score').textContent = score;
+                    
+                    // Increase speed every 5 bones
+                    if (score % 5 === 0) {
+                        gameSpeed += 0.5;
+                    }
+                } else if (bones[i].x + bones[i].width < 0) {
+                    bones.splice(i, 1);
+                }
+            }
+            
+            // Update clouds
+            clouds.forEach(cloud => {
+                cloud.x -= cloud.speed;
+                if (cloud.x < -100) {
+                    cloud.x = canvas.width + 100;
+                }
+            });
+            
+            // Update particles
+            updateParticles();
+            
+            // Spawn new air obstacles (ravens and branches) - only if Luna is alive
+            if (!luna.isDead && Math.random() < 0.008 && airObstacles.length < 2) {
+                const airType = Math.random() > 0.5 ? 'raven' : 'branch';
+                airObstacles.push({
+                    x: canvas.width,
+                    y: groundY - 120 - Math.random() * 100,
+                    width: airType === 'raven' ? 50 : 60,
+                    height: airType === 'raven' ? 30 : 15,
+                    type: airType,
+                    wingFlap: 0
+                });
+            }
+            
+            // Spawn new obstacles - only if Luna is alive
+            if (!luna.isDead && Math.random() < 0.01 && obstacles.length < 3) {
+                obstacles.push({
+                    x: canvas.width,
+                    y: groundY - 40,
+                    width: 30,
+                    height: 40,
+                    type: Math.random() > 0.5 ? 'hydrant' : 'rock'
+                });
+            }
+            
+            // Spawn new bones - only if Luna is alive
+            if (!luna.isDead && Math.random() < 0.015 && bones.length < 3) {
+                bones.push({
+                    x: canvas.width,
+                    y: groundY - 60 - Math.random() * 80,
+                    width: 40,
+                    height: 20,
+                    rotation: 0
+                });
+            }
+        }
+        
+        // Draw game
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = 'linear-gradient(to bottom, #87CEEB 0%, #98D8E8 100%)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw sky gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#98D8E8');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw clouds
+            clouds.forEach(drawCloud);
+            
+            // Draw ground
+            ctx.fillStyle = '#8B7355';
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+            ctx.fillStyle = '#90EE90';
+            ctx.fillRect(0, groundY, canvas.width, 10);
+            
+            // Draw grass
+            ctx.strokeStyle = '#228B22';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < canvas.width; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(i, groundY);
+                ctx.lineTo(i - 5, groundY - 5);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(i + 10, groundY);
+                ctx.lineTo(i + 10, groundY - 7);
+                ctx.stroke();
+            }
+            
+            // Draw game objects
+            obstacles.forEach(drawObstacle);
+            airObstacles.forEach(drawAirObstacle);
+            bones.forEach(drawBone);
+            drawParticles();
+            drawLuna();
+        }
+        
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            if (gameRunning) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        // Start game
+        function startGame() {
+            initAudio();
+            document.getElementById('startScreen').classList.add('hidden');
+            gameRunning = true;
+            score = 0;
+            lives = 3;
+            gameSpeed = 5;
+            obstacles = [];
+            bones = [];
+            particles = [];
+            airObstacles = [];
+            luna.jumpsLeft = 2;
+            luna.isDead = false;
+            luna.deathAnimation = 0;
+            luna.rotation = 0;
+            
+            // Initialize clouds
+            clouds = [
+                { x: 100, y: 50, speed: 0.5 },
+                { x: 400, y: 80, speed: 0.3 },
+                { x: 700, y: 60, speed: 0.4 }
+            ];
+            
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+            
+            if (musicEnabled && backgroundMusic) {
+                backgroundMusic();
+            }
+            
+            gameLoop();
+        }
+        
+        // Game over
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+        }
+        
+        // Restart game
+        function restartGame() {
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            startGame();
+        }
+        
+        // Toggle music
+        function toggleMusic() {
+            musicEnabled = !musicEnabled;
+            event.target.textContent = `Music: ${musicEnabled ? 'ON' : 'OFF'}`;
+        }
+        
+        // Event listeners with better mobile support
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                jump();
+            } else if (e.key.toLowerCase() === 'm') {
+                musicEnabled = !musicEnabled;
+            }
+        });
+        
+        // Improved touch handling for mobile
+        canvas.addEventListener('click', (e) => {
+            e.preventDefault();
+            jump();
+        });
+        
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        }, { passive: false });
+        
+        // Prevent double-tap zoom on iOS
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+    </script>
+</body>
+</html>
